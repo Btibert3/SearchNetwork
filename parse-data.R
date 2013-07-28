@@ -172,7 +172,6 @@ while (mongo.cursor.next(cursor)) {
  cat("finished ", tmp$path, "\n")
 }
 
-
 ## disconnect
 mongo.disconnect(mongo)
 
@@ -203,6 +202,29 @@ colnames(delta) = tolower(colnames(delta))
 ## this is a huge dataset
 dim(delta)
 
+## determine the schools we want to keep in our analysis
+## use 2010 to find the schools
+## we will filter the network dataset to keep only these schools
+delta10  = subset(delta, academicyear==2010)
+delta10 = subset(delta10, sector %in% 1:2) # 4 year public/private
+delta10 = subset(delta10, oberegion %in% 1:8) #excl military and outlier
+delta10 = subset(delta10, carnegiegrp_2000 %in% 1:2) # research/doc + masters
+unitids = delta10$unitid
+rm(delta10)
+
+## keep the data columns we want
+cols = c('unitid', 'academicyear', 'instname', 'zip', 'state', 'oberegion',
+         'fte_count', 'grad_rate_150_p4yr', 'ftretention_rate', 
+         'fall_cohort_pct_instate', 'applcn', 'admssn', 'enrlt',
+         'actpct', 'actcm25', 'actcm75', 'satpct', 'satmt25', 
+         'satmt75', 'satvr25', 'satvr75')
+
+## filter our data
+delta.f = subset(delta, 
+            subset = unitid %in% unitids,
+            select = cols)
+
+## 
 
 
 
