@@ -11,6 +11,7 @@ library(rmongodb)
 library(XML)
 library(plyr)
 library(stringr)
+library(reshape2)
 
 
 ###############################################################################
@@ -209,22 +210,45 @@ delta10  = subset(delta, academicyear==2010)
 delta10 = subset(delta10, sector %in% 1:2) # 4 year public/private
 delta10 = subset(delta10, oberegion %in% 1:8) #excl military and outlier
 delta10 = subset(delta10, carnegiegrp_2000 %in% 1:2) # research/doc + masters
-unitids = delta10$unitid
+
+## keep only the schools demographics
+cols = c('unitid', 'instname', 'zip', 'state', 'oberegion',
+         'sector','carnegiegrp_2000')
+demos = subset(delta10, select = cols)
 rm(delta10)
 
 ## keep the data columns we want
-cols = c('unitid', 'academicyear', 'instname', 'zip', 'state', 'oberegion',
-         'fte_count', 'grad_rate_150_p4yr', 'ftretention_rate', 
-         'fall_cohort_pct_instate', 'applcn', 'admssn', 'enrlt',
-         'actpct', 'actcm25', 'actcm75', 'satpct', 'satmt25', 
+cols = c('unitid', 'academicyear', 'fte_count', 'grad_rate_150_p4yr', 
+         'ftretention_rate', 'fall_cohort_pct_instate', 'applcn', 'admssn', 
+         'enrlt', 'actpct', 'actcm25', 'actcm75', 'satpct', 'satmt25', 
          'satmt75', 'satvr25', 'satvr75')
 
 ## filter our data
 delta.f = subset(delta, 
-            subset = unitid %in% unitids,
+            subset = unitid %in% demos$unitid,
             select = cols)
 
-## 
 
 
+###############################################################################
+## save the datasets to mongodb
+###############################################################################
 
+## reconnect to mongo
+mongo <- mongo.create(host="192.168.1.69")
+
+## put the parsed data into a list
+tmplist = list(edges=edges, 
+               schools=schools, 
+               demos=demos, 
+               data=delta.f)
+
+## convert the list into BSON so we can send it back to MongoDB
+## notice that we are sending a list that includes vectors and a df
+tmp.bson <- mongo.bson.from.list(tmplist)
+
+## write the data to the parsedpages collection
+mongo.insert(mongo, "he_search_graph.datasets", tmp.bson)
+
+## disconnect
+mongo.disconnect(mongo)

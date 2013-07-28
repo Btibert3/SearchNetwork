@@ -1,9 +1,9 @@
 # ignore these files
-#.rds
-#.Rdata
-#.rdata
-#.RData
-#.Rds
+.rds
+.Rdata
+.rdata
+.RData
+.Rds
 .graphml
 .gml
 .RHistory
