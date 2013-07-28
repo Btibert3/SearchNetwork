@@ -4,7 +4,7 @@
 ###############################################################################
 
 # set the directory
-setwd("~/Dropbox/GitHub/HigherEd/SearchNetwork")
+setwd("~/GitHub/SearchNetwork")
 
 ## load the packages
 library(rmongodb)
@@ -146,7 +146,6 @@ while (mongo.cursor.next(cursor)) {
 # class(tmp.df) # verify
 # str(tmp.df)
 
-
 ##  build the master data frames
 edges = data.frame(stringsAsFactors=F)
 schools = data.frame(stringsAsFactors=F)
@@ -156,15 +155,12 @@ cursor = mongo.find(mongo, "he_search_graph.parsedpages")
 
 ## iterate over the cursor
 while (mongo.cursor.next(cursor)) {
- 
  #iterate and grab the next record
  tmp = mongo.bson.to.list(mongo.cursor.value(cursor))
- 
  # append the comps data to the edges dataframe
  e.tmp = tmp$comps
  e.tmp = as.data.frame(e.tmp)
  edges = rbind.fill(edges, e.tmp)
- 
  # append the school info
  s.tmp = data.frame(unitid = tmp$unitid,
                     name = tmp$inst,
@@ -172,7 +168,6 @@ while (mongo.cursor.next(cursor)) {
                     path = tmp$path,
                     stringsAsFactors=FALSE)
  schools = rbind.fill(schools, s.tmp)
- 
  # status
  cat("finished ", tmp$path, "\n")
 }
@@ -181,194 +176,32 @@ while (mongo.cursor.next(cursor)) {
 ## disconnect
 mongo.disconnect(mongo)
 
+## cleanup
+rm(cursor, e.tmp, s.tmp, tmp, mongo)
 
-
-###############################################################################
-## Crawl the IPEDS Surveys to get the files we want AND VERSIONS we want
-## BE VERY CAREFUL FOR REVISION DATASETS - DONT ALWAYS USE ORIGINAL FILE
-###############################################################################
-
-# use 2006 - 2010, as 2010 is the most recent data avail in IPEDS 
-BASE_URL <- 'http://nces.ed.gov/ipeds/datacenter/data/'
-
-## Create the file names for the variables we want
-hd = paste0('HD', 2006:2010)
-ic = paste0('IC', 2006:2010)
-sfa = c('SFA0607','SFA0708','SFA0809','SFA0910','SFA1011')
-
-# specify the tmp dir
-tmpDIR = "./data/tmp"
-
-##==============================================================
-## get the datasets
-##==============================================================
-
-## crawl the raw zip files - HD
-for (survey in hd) {
- # build the url
- URL <- paste(BASE_URL, survey, ".zip", sep="")
- # build the destination -- needs to include path AND file
- dest <- paste("data/hd/", survey, ".zip", sep="")
- # fetch the file
- download.file(URL, destfile=dest, mode="wb", cacheOK=FALSE)
-}
-
-## crawl the raw zip files - IC
-for (survey in ic) {
- # build the url
- URL <- paste(BASE_URL, survey, ".zip", sep="")
- # build the destination -- needs to include path AND file
- dest <- paste("data/ic/", survey, ".zip", sep="")
- # fetch the file
- download.file(URL, destfile=dest, mode="wb", cacheOK=FALSE)
-}
-
-## crawl the raw zip files - SFA
-for (survey in sfa) {
- # build the url
- URL <- paste(BASE_URL, survey, ".zip", sep="")
- # build the destination -- needs to include path AND file
- dest <- paste("data/sfa/", survey, ".zip", sep="")
- # fetch the file
- download.file(URL, destfile=dest, mode="wb", cacheOK=FALSE)
-}
-
-
-##==============================================================
-## helper functions 
-##==============================================================
-
-## clean out the tmp folder
-cleanTmp = function(DIR="data/tmp") {
- FILES = list.files(DIR, full.names=TRUE)
- for (FILE in FILES) {
-  file.remove(FILE)
- }
-}
-
-## pick the file, use the revised (rv) version if present
-pickFile = function(DIR="data/tmp") {
- FILES = list.files(DIR, full.names=TRUE)
- if (length(FILES) == 1) {
-  fpath = FILES
- }
- if (length(FILES) != 1) {
-  fpath = FILES[str_detect(FILES, "_rv.csv")]
- }
- return(fpath)
-}
-
-
-##==============================================================
-## parse the HD datasets
-##==============================================================
-
-# Files
-FILES = list.files("data/hd/", pattern=".zip", full.names=TRUE)
-
-## master hd dataframe
-hd = data.frame(stringsAsFactors=F)
-
-## go through the files
-for (FILE in FILES ) {
- # status
- cat("processing ", FILE, "\n")
- # unzip the file to the tmp folder
- unzip(FILE, exdir=tmpDIR)
- # determine the path
- fpath = pickFile()
- tmp = read.csv(fpath, header=TRUE, stringsAsFactors=FALSE)
- colnames(tmp) = tolower(colnames(tmp))
- year = str_extract(fpath, "20[0-9]{2}")
- tmp$year = year
- hd = rbind.fill(hd, tmp)
- # clean tmp folder
- cleanTmp()
-}
-
-
-##==============================================================
-## parse the IC datasets
-##==============================================================
-
-# Files
-FILES = list.files("data/ic/", pattern=".zip", full.names=TRUE)
-
-## master hd dataframe
-ic = data.frame(stringsAsFactors=F)
-
-## go through the files
-for (FILE in FILES ) {
- # status
- cat("processing ", FILE, "\n")
- # unzip the file to the tmp folder
- unzip(FILE, exdir=tmpDIR)
- # determine the path
- fpath = pickFile()
- tmp = read.csv(fpath, header=TRUE, stringsAsFactors=FALSE)
- colnames(tmp) = tolower(colnames(tmp))
- year = str_extract(fpath, "20[0-9]{2}")
- tmp$year = year
- ic = rbind.fill(ic, tmp)
- # clean tmp folder
- cleanTmp()
-}
-
-
-
-##==============================================================
-## parse the sfa datasets
-##==============================================================
-
-# Files
-FILES = list.files("data/sfa/", pattern=".zip", full.names=TRUE)
-
-## master hd dataframe
-sfa = data.frame(stringsAsFactors=F)
-
-## go through the files
-for (FILE in FILES ) {
- # status
- cat("processing ", FILE, "\n")
- # unzip the file to the tmp folder
- unzip(FILE, exdir=tmpDIR)
- # determine the path
- fpath = pickFile()
- tmp = read.csv(fpath, header=TRUE, stringsAsFactors=FALSE)
- colnames(tmp) = tolower(colnames(tmp))
- year = str_extract(fpath, "[0-9]{4}")
- tmp$year = year
- sfa = rbind.fill(sfa, tmp)
- # clean tmp folder
- cleanTmp()
-}
-
-## change the years to match the other
-sfa$year[sfa$year=='0607'] = '2006'
-sfa$year[sfa$year=='0708'] = '2007'
-sfa$year[sfa$year=='0809'] = '2008'
-sfa$year[sfa$year=='0910'] = '2009'
-sfa$year[sfa$year=='1011'] = '2010'
-
-
-## save out the datasets
-saveRDS(sfa, file="data/sfa.rds")
-saveRDS(hd, file="data/hd.rds")
-saveRDS(ic, file="data/ic.rds")
-
+## tidy up the edges dataset
+colnames(edges) = c("rank", "from", "comp")
+s.tmp = subset(schools, select=c("unitid", "path"))
+colnames(s.tmp) = c("to", "path")
+edges = merge(edges, s.tmp, by.x="comp", by.y="path", all.x=T)
+edges$comp = NULL
+rm(s.tmp)
 
 ###############################################################################
-## Put together the IPEDS data 
+## Load the huge Delta Cost Project dataset and reshape the data to
+## give us the metrics we want, one row per school
+## access the data here: http://nces.ed.gov/ipeds/deltacostproject/
 ###############################################################################
 
+## load the data from my machine -- already unzipped
+## use ?download.file and ?unzip if you dont already have it
+ddir = '~/dropbox/datasets/highered/delta-cost/'
+fname = paste0(ddir, "delta_public_00_10.csv")
+delta = read.csv(fname, header=TRUE, stringsAsFactors=FALSE)
+colnames(delta) = tolower(colnames(delta))
 
-
-
-
-
-
-
-
+## this is a huge dataset
+dim(delta)
 
 
 
