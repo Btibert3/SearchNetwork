@@ -173,9 +173,6 @@ while (mongo.cursor.next(cursor)) {
  cat("finished ", tmp$path, "\n")
 }
 
-## disconnect
-mongo.disconnect(mongo)
-
 ## cleanup
 rm(cursor, e.tmp, s.tmp, tmp, mongo)
 
@@ -187,68 +184,13 @@ edges = merge(edges, s.tmp, by.x="comp", by.y="path", all.x=T)
 edges$comp = NULL
 rm(s.tmp)
 
-###############################################################################
-## Load the huge Delta Cost Project dataset and reshape the data to
-## give us the metrics we want, one row per school
-## access the data here: http://nces.ed.gov/ipeds/deltacostproject/
-###############################################################################
-
-## load the data from my machine -- already unzipped
-## use ?download.file and ?unzip if you dont already have it
-ddir = '~/dropbox/datasets/highered/delta-cost/'
-fname = paste0(ddir, "delta_public_00_10.csv")
-delta = read.csv(fname, header=TRUE, stringsAsFactors=FALSE)
-colnames(delta) = tolower(colnames(delta))
-
-## this is a huge dataset
-dim(delta)
-
-## determine the schools we want to keep in our analysis
-## use 2010 to find the schools
-## we will filter the network dataset to keep only these schools
-delta10  = subset(delta, academicyear==2010)
-delta10 = subset(delta10, sector %in% 1:2) # 4 year public/private
-delta10 = subset(delta10, oberegion %in% 1:8) #excl military and outlier
-delta10 = subset(delta10, carnegiegrp_2000 %in% 1:2) # research/doc + masters
-
-## keep only the schools demographics
-cols = c('unitid', 'instname', 'zip', 'state', 'oberegion',
-         'sector','carnegiegrp_2000')
-demos = subset(delta10, select = cols)
-rm(delta10)
-
-## keep the data columns we want
-cols = c('unitid', 'academicyear', 'fte_count', 'grad_rate_150_p4yr', 
-         'ftretention_rate', 'fall_cohort_pct_instate', 'applcn', 'admssn', 
-         'enrlt', 'actpct', 'actcm25', 'actcm75', 'satpct', 'satmt25', 
-         'satmt75', 'satvr25', 'satvr75')
-
-## filter our data
-delta.f = subset(delta, 
-            subset = unitid %in% demos$unitid,
-            select = cols)
-
-
-
-###############################################################################
-## save the datasets to mongodb
-###############################################################################
-
-## reconnect to mongo
-mongo <- mongo.create(host="192.168.1.69")
-
-## put the parsed data into a list
-tmplist = list(edges=edges, 
-               schools=schools, 
-               demos=demos, 
-               data=delta.f)
-
-## convert the list into BSON so we can send it back to MongoDB
-## notice that we are sending a list that includes vectors and a df
+## save the edges and school info as parsed datasets into mongodb
+tmplist = list(edges = edges, 
+               schools = schools)
 tmp.bson <- mongo.bson.from.list(tmplist)
-
-## write the data to the parsedpages collection
+mongo.remove(mongo, "he_search_graph.datasets")
 mongo.insert(mongo, "he_search_graph.datasets", tmp.bson)
 
 ## disconnect
 mongo.disconnect(mongo)
+
